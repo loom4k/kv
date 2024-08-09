@@ -1,0 +1,42 @@
+name: Publish package to GitHub Packages
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-[A-Za-z][A-Za-z0-9]*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@loom4k'
+
+      - name: Extract version from tag
+        id: extract_version
+        run: echo "::set-output name=version::${GITHUB_REF#refs/tags/}"
+
+      - name: Update package.json version
+        run: |
+          VERSION=${{ steps.extract_version.outputs.version }}
+          jq --arg version "$VERSION" '.version = $version' package.json > tmp.json && mv tmp.json package.json
+        shell: bash
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: npm publish
+
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
